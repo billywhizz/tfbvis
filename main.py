@@ -1,11 +1,7 @@
 import os
-import re
 import sys
 from dataclasses import asdict, dataclass, is_dataclass
 from typing import Dict, List
-from urllib.parse import urlparse
-from urllib.request import urlopen
-from zipfile import ZipFile
 
 import numpy as np
 import simplejson
@@ -488,16 +484,22 @@ def get_stats(filename: str):
         header2 = map(lambda x: x.strip('"'), csv.readline().strip().split(","))
 
     names = []
+    existing = [] # Workaround duplicate header names that read_csv forbids
     for h1, h2 in zip(header1, header2):
         if h1:
             lasth1 = h1
+            if (h1 + h2) in existing:
+                h2 += "+";
+            existing.append(h1 + h2)
             names.append((h1, h2))
         else:
+            if (lasth1 + h2) in existing:
+                h2 += "+";
+            existing.append(lasth1 + h2)
             names.append((lasth1, h2))
 
     names[0] = "epoch"
     return read_csv(filename, skiprows=6, names=names, index_col=[0])
-
 
 def get_memory_usage(stats: DataFrame):
     memory = stats["memory usage", "used"]
@@ -563,6 +565,8 @@ def get_test_results(
             framework, paths = files["Framework"], files["Files"]
             if not get_verification(paths.verification):
                 continue
+            if not os.path.exists(paths.stats) or not os.path.exists(paths.raw):
+                continue
 
             rpslats = get_rps_and_latency(paths.raw)
             if rpslats is None or len(rpslats) == 0:
@@ -575,6 +579,7 @@ def get_test_results(
             # Using only data from the fastest 15 second measurement
             # Add one second to starttime to allow framework to ramp up cpu/memory
             start, end = rpslat.starttime + 1, rpslat.endtime
+            print(f"foo '{paths.stats}' {start} {end}")
             statframe = get_stats(paths.stats).loc[start:end]
             memory = get_memory_usage(statframe)
             cpu_usr = get_cpu_usr(statframe)
@@ -596,77 +601,6 @@ def get_test_results(
     return testresults
 
 
-def download_results(url):
-    """
-    Download the results zip from the web, e.g. from
-    https://tfb-status.techempower.com/results/5bc93dbb-7aa6-49a1-ab39-a2d36106beb9,
-    if it is not found already in 'cache/'.
-    """
-
-    content = urlopen(url).read().decode("utf-8")
-    if "<body>" not in content:
-        raise ValueError(f"Could not find '<body>' at '{url}'")
-
-    # basic meta data from HTML for download path {environment}_{date}_{runid}
-    body = content[content.index("<body>") :]  # noqa: E203
-    f100 = body[:100]
-
-    environment = "UnknownEnvironment"
-    if "Azure" in f100:
-        environment = "Azure"
-    elif "Citrine" in f100:
-        environment = "Citrine"
-
-    runid = "UnknownRunId"
-    match = re.search(GuidPattern, f100)
-    if match:
-        runid = match.group(0)
-
-    started_date = "UnknownStartedDate"
-    match = re.search("started [0-9]{4}-[0-9]{2}-[0-9]{2}", body)
-    if match:
-        started_date = match.group(0).replace(" ", "")
-
-    # do a hacky search for results.zip download URL
-    sentinal = ">results.zip</a>"
-    if sentinal not in content:
-        raise ValueError(f"Could not find '{sentinal}' at '{url}'")
-
-    rzip_at = body.index(sentinal)
-    back = 4
-    match = re.search('href="(.*)"', body[(rzip_at - back) : rzip_at])  # noqa: E203
-    while back < rzip_at and not match:
-        match = re.search('href="(.*)"', body[(rzip_at - back) : rzip_at])  # noqa: E203
-        back += 1
-
-    relative_path = match.group(1)
-    uparse = urlparse(url)
-    download_url = f"{uparse.scheme}://{uparse.netloc}/{relative_path}"
-
-    name = f"{environment}_{started_date}_{runid}"
-    results_dir = os.path.join("cache", name)
-    if os.path.isdir(results_dir):
-        print(f"Found existing downloaded results in {results_dir}")
-        return (results_dir, name)
-
-    results_zip = results_dir + ".zip"
-    print(f"Downloading {download_url} to {results_zip}")
-    download_zip = urlopen(download_url).read()
-    with open(results_zip, "wb") as rz:
-        rz.write(download_zip)
-
-    # we have the zip, create the directory and expand data into it
-    if not os.path.isdir("cache"):
-        os.makedirs("cache")
-    if not os.path.isdir(results_dir):
-        os.makedirs(results_dir)
-
-    with ZipFile(results_zip, "r") as rz:
-        rz.extractall(results_dir)
-
-    return (results_dir, name)
-
-
 def print_help():
     print(
         "Required arguments: "
@@ -676,15 +610,7 @@ def print_help():
 
 
 def main(args):
-    if len(args) == 1:
-        # check if we have a URL
-        as_url = urlparse(args[0])
-        if as_url.scheme == "https" and len(as_url.netloc.split(".")) > 1:
-            print(f"Getting result summary at {args[0]}")
-            path, name = download_results(args[0])
-        else:
-            print_help()
-    elif len(args) == 2:
+    if len(args) == 2:
         path, name = args[0], args[1]
     else:
         print_help()
@@ -692,17 +618,7 @@ def main(args):
     if not os.path.isdir(path):
         print(f"'{path}' is not a directory")
         return
-
-    # use the results subdirectory if given unzipped path
-    as_unzipped_azure = os.path.join(
-        path, "mnt", "tfb", "FrameworkBenchmarks", "results"
-    )
-    as_unzipped_citrine = os.path.join(path, "results")
-    if os.path.isdir(as_unzipped_azure):
-        path = as_unzipped_azure
-    elif os.path.isdir(as_unzipped_citrine):
-        path = as_unzipped_citrine
-
+    path = os.path.join(path, "results")
     start([(d, name) for d in os.scandir(path) if d.is_dir()])
 
 

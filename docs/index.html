@@ -13,11 +13,16 @@
 <body>
     <style>
         body {
-            background-color: #ebebeb;
+          background-color: #2d3436;
+          color: white;
+          font-size: 10pt;
+
+        }
+        body,a,p,select,input,option {
+          font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif;
         }
 
         #description {
-            width: 800px;
             margin-left: 10px;
             margin-top: 10px;
         }
@@ -119,37 +124,10 @@
     </style>
 
     <div class="content">
-        <div id="description" class="hidden">
-            <h3>Dstat 0.7.3 TechEmpower Benchmarks</h3>
-            <ul>
-                <li>
-                    <a href="https://tfb-status.techempower.com/">Continuous benchmarking</a>
-                </li>
-                <li>
-                    <a href="https://www.techempower.com/benchmarks/">Last noted benchmark visualization</a>
-                </li>
-                <li>
-                    <a href="https://github.com/TechEmpower/FrameworkBenchmarks">Benchmark source</a>
-                </li>
-                <li>
-                    <a href="https://github.com/ajdust/tfbvis">Source for this visualization</a>
-                </li>
-                <li id="testrunLink">
-                </li>
-            </ul>
-            <div id="columnChecksContainer" class="column-checks-container"></div>
-        </div>
         <div class="filter">
-            <label for="testrun">Run:</label>
-            <select id="testrun" onchange="TFB_GRID.changeRun()">
-                <option value="Citrine_started2020-05-09_4c536195-90ff-40b8-8636-a719318a864b">
-                    Citrine 2020-5-09 (Round 19)</option>
-                <option value="Citrine_started2020-03-16_71407829-eaa7-4b5d-a6a2-54b8ba3b2d3f">
-                    Citrine 2020-3-16</option>
-                <option value="Azure_started2020-03-17_5bc93dbb-7aa6-49a1-ab39-a2d36106beb9">
-                    Azure 2020-3-17</option>
+            <select id="testrun" onchange="TFB_GRID.loadTable()">
+                <option value="latest">latest</option>
             </select>
-            <label for="testtype">Test:</label>
             <select id="testtype" onchange="TFB_GRID.loadTable()">
                 <option value="plaintext">plaintext</option>
                 <option value="json">json</option>
@@ -158,14 +136,14 @@
                 <option value="update">update</option>
                 <option value="db">db</option>
             </select>
-            <label for="displayRounded" title="Display rounded values to hide minor differences">Round</label>
-            <input id="displayRounded" type="checkbox" onchange="TFB_GRID.loadTable()">
             <a id="hidedescription" onclick="document.getElementById('description').classList.toggle('hidden')">
-                <u>Toggle description</u>
+                <u>filters</u>
             </a>
         </div>
-
-        <div id="myGrid" class="ag-theme-balham"></div>
+        <div id="description" class="hidden">
+            <div id="columnChecksContainer" class="column-checks-container"></div>
+        </div>
+        <div id="myGrid" class="ag-theme-balham-dark"></div>
     </div>
 </body>
 
